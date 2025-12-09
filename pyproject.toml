@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mktree"
+version = "0.1.0"
+description = "Create directory trees from a tree specification"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Unlicense"}
+authors = [
+    {name = "Torin Halsted", email = "modularizer@gmail.com"},
+]
+keywords = ["directory", "tree", "filesystem", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: Public Domain",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Filesystems",
+]
+
+dependencies = []
+
+[project.scripts]
+mktree = "mktree:main"
+
+[tool.setuptools]
+py-modules = ["mktree"]
+

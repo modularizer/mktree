@@ -5,28 +5,44 @@ Create directory trees from a simple text specification. Quickly scaffold projec
 
 ## Installation
 ```bash
-git clone <repository-url>
-cd mktree
-pip install -e .
+pip install modularizer mktree
 ```
 
 ## Quick Start
-Just run
+
+### Command-Line Usage (recommended)
+Just run `mktree` and you will get prompted to input the tree, or you can pass it in as the first arg
 ```bash
 mktree
 ```
 
-You'll be prompted to enter your tree specification. End with Ctrl+D or an empty line.
+
+### Python
+```python
+from mktree import TreePath
+
+if __name__ == "__main__":
+    t = TreePath.from_tree("""
+    my_project/
+        src/
+            my_project/
+                __init__.py  # This
+                __main__.py  # This runs when you call `python -m src.%my_project%`
+                my_project.py
+                cli.py
+    """, my_project="soup").mktree()
+```
+
 
 ## Command-Line Options
-- `--root-path PATH`: Set the root path for the tree (relabels the root)
-- `--parent-path PATH`: Wrap the tree in a parent directory
+- `--dst PATH`: Set the root path for the tree (relabels the root)
+- `--parent PATH`: Wrap the tree in a parent directory
 - `-y, --yes`: Automatically use default path without prompting
 - `--indent-size N`: Set indentation size (default: 2)
 - `--mode MODE`: Set file permissions in octal (default: 777)
 - `--no-parents`: Don't create parent directories
 - `--no-exist-ok`: Don't ignore existing directories
-- **NOTE**: If neither `--root-path` nor `--parent-path` is specified, `mktree` will prompt you for where to create the folder, showing a default based on the first root in your tree, unless you specify `-y`
+- **NOTE**: If neither `--dst` nor `--parent` is specified, `mktree` will prompt you for where to create the folder, showing a default based on the first root in your tree, unless you specify `-y`
 
 ### From Command Line
 

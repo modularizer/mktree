@@ -5,6 +5,152 @@ import json
 import sys
 from pathlib import Path
 
+
+def count_leading_spaces(s: str):
+    return len(s) - len(s.lstrip())
+
+
+# Named presets for ultra-common tree structures
+TREE_PRESETS = {
+    "git": """
+.gitignore
+LICENSE
+README.md
+""",
+    "py1": """
+project_name/
+  __init__.py
+  __main__.py
+  project_name.py
+  tests/
+    __init__.py
+    test_project_name.py
+  README.md
+  pyproject.toml
+  LICENSE
+""",
+    "py2": """
+project_name/
+    src/
+        project_name/
+          __init__.py
+          __main__.py
+          project_name.py
+    tests/
+        __init__.py
+        test_project_name.py
+    README.md
+    pyproject.toml
+    LICENSE
+""",
+
+    "react": """
+project_name/
+  src/
+    components/
+      App.jsx
+    pages/
+      Home.jsx
+    App.css
+    index.js
+  public/
+    index.html
+  package.json
+  README.md
+  .gitignore
+  LICENSE
+""",
+    
+    "express": """
+project_name/
+  src/
+    routes/
+      index.js
+    models/
+      User.js
+    app.js
+    server.js
+  tests/
+    routes.test.js
+  package.json
+  README.md
+  .env.example
+  .gitignore
+  LICENSE
+""",
+    
+    "django": """
+project_name/
+  project_name/
+    __init__.py
+    settings.py
+    urls.py
+    wsgi.py
+  app_name/
+    __init__.py
+    models.py
+    views.py
+    urls.py
+    migrations/
+      __init__.py
+    templates/
+      app_name/
+        index.html
+  manage.py
+  requirements.txt
+  README.md
+  .env.example
+  LICENSE
+""",
+    
+    "flask": """
+project_name/
+  app/
+    __init__.py
+    routes.py
+    models.py
+    templates/
+      base.html
+      index.html
+    static/
+      css/
+        style.css
+  tests/
+    __init__.py
+    test_routes.py
+  requirements.txt
+  README.md
+  .env.example
+  LICENSE
+""",
+    
+    "expo": """
+project_name/
+  app/
+    _layout.tsx
+    index.tsx
+    (tabs)/
+      _layout.tsx
+      home.tsx
+      profile.tsx
+  components/
+  assets/
+    images/
+    fonts/
+  app.json
+  package.json
+  README.md
+  .gitignore
+  LICENSE
+""",
+    "ghw": """
+.github/
+    workflows/
+        publish.yml
+"""
+
+}
+
 class TreePath(Path):
     _flavour = Path()._flavour
 
@@ -146,14 +292,14 @@ class TreePath(Path):
     @classmethod
     def _parse_ascii_box_line(cls, line: str) -> tuple[int, str] | None:
         """
-        Parse a line with ASCII box-drawing characters (+--, |, \--).
+        Parse a line with ASCII box-drawing characters (+--, |, \\--).
         
         Examples:
             +-- item          -> level 0
             |   +-- item      -> level 1
-            |   \-- item      -> level 1
-            \-- item          -> level 0
-                \-- item      -> level 1 (4 spaces before \--)
+            |   \\-- item      -> level 1
+            \\-- item          -> level 0
+                \\-- item      -> level 1 (4 spaces before \\--)
         
         Returns:
             (level, content) tuple if line uses ASCII box-drawing format, None otherwise.
@@ -381,7 +527,27 @@ class TreePath(Path):
             root_path: str | Path = None,
             parent_path: str | Path = None,
             indent_size: int = 2,
+            front_escape: str = "",
+            back_escape: str = "",
+            **kwargs
     ) -> "TreePath":
+        for k, v in kwargs.items():
+            tree_text = tree_text.replace(f"{front_escape}{k}{back_escape}", str(v))
+
+        tree_text = tree_text.replace("\t", " " * indent_size)
+        lines = tree_text.splitlines()
+        lines = [x for x in lines if x.split("#")[0].strip()]
+        spaces = [count_leading_spaces(x) for x in lines]
+        offset = spaces[0]
+        if offset > min(spaces):
+            lines[0] = lines[0].lstrip()
+            offset = 0
+        spaces = [x - offset for x in spaces]
+        indents = sorted(set(spaces))
+        lines = [indents.index(spaces[i]) * indent_size * " " + line.lstrip() for i, line in enumerate(lines)]
+        tree_text = "\n".join(lines)
+
+        print(tree_text)
 
         if root_path is not None:
             root_path = Path(root_path).expanduser()
@@ -428,7 +594,6 @@ class TreePath(Path):
             format_type = 'indent'
         
         # Normalize tabs for text-based formats
-        tree_text = tree_text.replace("\t", " " * indent_size)
         lines = [l.rstrip() for l in tree_text.splitlines() if l.strip()]
         if not lines:
             raise ValueError("Tree specification cannot be empty")
@@ -583,15 +748,20 @@ def main():
     parser.add_argument(
         "tree",
         nargs="?",
-        help="Optional tree specification. If not provided, will prompt for multiline input."
+        help="Optional tree specification, preset name (see --list-presets), or leave empty to prompt for multiline input."
     )
     parser.add_argument(
-        "--root-path",
+        "--list-presets",
+        action="store_true",
+        help="List all available tree presets and exit"
+    )
+    parser.add_argument(
+        "--dst",
         type=str,
-        help="Root path for the tree"
+        help="Destination path for the tree (relabels the root)"
     )
     parser.add_argument(
-        "--parent-path",
+        "--parent",
         type=str,
         help="Parent path to wrap the tree"
     )
@@ -625,11 +795,63 @@ def main():
         help="Automatically use default path without prompting"
     )
     
-    args = parser.parse_args()
+    # Parse known args and collect unknown args for arbitrary kwargs
+    args, unknown = parser.parse_known_args()
     
-    # Get tree text - either from argument or prompt for input
+    # Handle --list-presets
+    if args.list_presets:
+        if args.tree:
+            name = args.tree
+            print(TREE_PRESETS[name])
+            return
+
+        print("Available tree presets:")
+        print("=" * 60)
+        for name, tree in sorted(TREE_PRESETS.items()):
+            print(f"\n{name}:")
+            # Show first few lines of the preset
+            lines = tree.strip().split('\n')[:5]
+            for line in lines:
+                print(f"  {line}")
+            if len(tree.strip().split('\n')) > 5:
+                print(f"  ... ({len(tree.strip().split('\n')) - 5} more lines)")
+        sys.exit(0)
+    
+    # Parse unknown arguments as key=value pairs or --key value
+    # This allows passing arbitrary kwargs to from_tree()
+    extra_kwargs = {}
+    i = 0
+    while i < len(unknown):
+        arg = unknown[i]
+        if arg.startswith('--'):
+            # Remove -- prefix
+            key = arg[2:]
+            # Check if it's --key=value format
+            if '=' in key:
+                key, value = key.split('=', 1)
+                extra_kwargs[key.replace('-', '_')] = value
+            else:
+                # Check if next arg is a value (not another --arg)
+                if i + 1 < len(unknown) and not unknown[i + 1].startswith('--'):
+                    extra_kwargs[key.replace('-', '_')] = unknown[i + 1]
+                    i += 1
+                else:
+                    # Boolean flag (no value)
+                    extra_kwargs[key.replace('-', '_')] = True
+        elif '=' in arg:
+            key, value = arg.split('=', 1)
+            extra_kwargs[key.replace('-', '_')] = value
+        i += 1
+
+    print(f"{extra_kwargs=}")
+    
+    # Get tree text - either from argument, preset name, or prompt for input
     if args.tree:
-        tree_text = args.tree
+        # Check if tree argument is a preset name
+        if args.tree in TREE_PRESETS:
+            tree_text = TREE_PRESETS[args.tree]
+        else:
+            tree_text = args.tree
     else:
         print("Enter tree specification (end with Ctrl+D or empty line):", file=sys.stderr)
         lines = []
@@ -648,20 +870,19 @@ def main():
     
     # Determine default path from tree structure
     # Parse tree to find the first root name for default
-    lines = [l.rstrip() for l in tree_text.splitlines() if l.strip()]
-    default_path = "./demo"
+    lines = [l.rstrip() for l in tree_text.splitlines() if l.split("#")[0].strip()]
+    default_path = "."
     if lines:
         first_line = lines[0].lstrip()
-        if '#' in first_line:
-            first_line = first_line.split("#", 1)[0]
-        first_line = first_line.rstrip()
         if first_line.endswith("/"):
             first_line = first_line[:-1]
-        if first_line:
+        if extra_kwargs.get(first_line):
+            default_path = f"./{extra_kwargs[first_line]}"
+        elif first_line:
             default_path = f"./{first_line}"
     
-    # Prompt for path if neither root_path nor parent_path is specified
-    if args.root_path is None and args.parent_path is None:
+    # Prompt for path if neither dst nor parent is specified
+    if args.dst is None and args.parent is None:
         # Prompt user for path
         default = Path(default_path).expanduser().resolve()
         default_str = str(default)
@@ -680,23 +901,26 @@ def main():
                 user_input = ""
             
             if user_input:
-                # User provided a path, use it as parent_path
-                args.parent_path = user_input
+                # User provided a path, use it as parent
+                args.parent = user_input
             else:
                 # User just hit enter, use default
-                args.parent_path = default_str
+                args.parent = default_str
         else:
             # Auto-yes: use default
-            args.parent_path = default_str
+            args.parent = default_str
     
     # Build kwargs for from_tree
     from_tree_kwargs = {}
-    if args.root_path is not None:
-        from_tree_kwargs["root_path"] = args.root_path
-    if args.parent_path is not None:
-        from_tree_kwargs["parent_path"] = args.parent_path
+    if args.dst is not None:
+        from_tree_kwargs["root_path"] = args.dst
+    if args.parent is not None:
+        from_tree_kwargs["parent_path"] = args.parent
     if args.indent_size is not None:
         from_tree_kwargs["indent_size"] = args.indent_size
+    
+    # Add any arbitrary kwargs from unknown arguments
+    from_tree_kwargs.update(extra_kwargs)
     
     # Build kwargs for mktree
     mktree_kwargs = {
